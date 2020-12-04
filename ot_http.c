@@ -454,7 +454,23 @@ static ssize_t http_handle_announce( const int64 sock, struct ot_workstruct *ws,
       if( ws->hash ) HTTPERROR_400_DOUBLEHASH;
       /* ignore this, when we have less than 20 bytes */
       if( scan_urlencoded_query( &read_ptr, write_ptr = read_ptr, SCAN_SEARCHPATH_VALUE ) != 20 ) HTTPERROR_400_PARAM;
-        ws->hash = (ot_hash*)write_ptr;
+      ws->hash = (ot_hash*)write_ptr;
+
+      /* prep for index */
+      
+      // getting hex hash
+      static const char hex_chars[] = "0123456789abcdef";
+      int hash_stop = 20;
+      char *hex_hash = malloc(sizeof(char)*(hash_stop*2)+1);
+      char *out_hash = malloc(sizeof(char)*hash_stop+1);
+      strncpy(out_hash, write_ptr, hash_stop);
+      out_hash[hash_stop] = '\0';
+      for (int hi=0; hi < hash_stop; ++hi){
+        hex_hash[(hi * 2)] = hex_chars[(unsigned char)out_hash[hi] >> 4];
+        hex_hash[(hi * 2)+1] = hex_chars[(unsigned char)out_hash[hi] & 0xf];
+      }
+      free(out_hash);
+      free(hex_hash);
       break;
 #ifdef WANT_IP_FROM_QUERY_STRING
     case  7: /* matched "ip" */

@@ -4,12 +4,15 @@ This is as _WIP_ fork of opentracker (git://erdgeist.org/opentracker), inspired 
 TODO: 
     - get hex hash [DONE]
       - how to store hash (mem or disk)
-    - start download to collect metadata
-    - get metadata
-      - how to store metadata (mem or disk)
-    - add to metdata tf-idf matrix
-    - re build low dimensional space matricies
-    - search look up enpoint
+      	- send hash to global collection queue
+    - start download to collect metadata from hash quue [IN PROGRESS]
+    	- figure out how to do this non bloking
+	    - get metadata
+	      - how to store metadata (mem or disk)
+    - add to metdata tf-idf matrix [TODO]
+    - re build low dimensional space matricies [TODO]
+    	- figure out how to do this non bloking
+    - search look up enpoint [TODO]
 
 You need libowfat (http://www.fefe.de/libowfat/).
 

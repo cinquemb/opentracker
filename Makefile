@@ -85,3 +85,18 @@ clean:
 
 install:
 	install -m 755 opentracker $(BINDIR)
+
+
+# search
+
+LIBTORRENT=`pkg-config --cflags --libs libtorrent`
+LIBCURL=`pkg-config --cflags --libs libcurl`
+LIBBOOSTSYSTEM=/usr/local/lib/libboost_system.a
+LIBARMADILLO=/usr/local/lib/libarmadillo.dylib
+CPP=ccache clang++ -fcolor-diagnostics
+CFLAGS= -Wall -O3 -std=gnu++14 -pedantic -I/usr/local/include/
+
+
+metadata:
+	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+

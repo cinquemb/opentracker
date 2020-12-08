@@ -89,14 +89,14 @@ install:
 
 # search
 
-LIBTORRENT=`pkg-config --cflags --libs libtorrent`
+LIBTORRENT=`pkg-config --cflags --libs libtorrent-rasterbar`
 LIBCURL=`pkg-config --cflags --libs libcurl`
-LIBBOOSTSYSTEM=/usr/local/lib/libboost_system.a
+LIBBOOSTSYSTEM=/usr/local/lib/libboost_system.dylib
 LIBARMADILLO=/usr/local/lib/libarmadillo.dylib
 CPP=ccache clang++ -fcolor-diagnostics
 CFLAGS= -Wall -O3 -std=gnu++14 -pedantic -I/usr/local/include/
 
 
 metadata:
-	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
 

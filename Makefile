@@ -98,5 +98,5 @@ CFLAGS= -Wall -O3 -std=gnu++14 -pedantic -I/usr/local/include/
 
 
 metadata:
-	$(CPP) meta_data_client.cpp -o metadata -g $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
 

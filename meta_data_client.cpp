@@ -32,7 +32,7 @@ std::vector<std::string> info_hash_vec;
 
 // word -> string of index of info hashes
 // if word is seen with info hash, append index of infohash from vec
-std::map<std::string, std::string> word_infohash_incides_map;
+std::map<std::string, std::string> word_infohash_indices_map;
 
 // matrix where rows -> info_hash, colums -> words
 arma::sp_dmat word_infohash_matrix;
@@ -45,44 +45,34 @@ struct RetrieveKey{
 };
 
 
-void parse_words_and_info_hash(std::vector<std::string>& mail_files, std::string& top_dir_path){
-	std::cout << "	Parsing Emails and Constructing Matrix" << std::endl;
-	int start_vec_len = mail_files.size();
+void parse_words_and_info_hash(std::string& torrent_metadata, std::string& top_dir_path, std::map<std::string, std::string>& word_infohash_indices_map, std::vector<std::string>& info_hash_vec){
+	std::cout << "	Parsing info hashes and Constructing Matrix" << std::endl;
+	int start_vec_len = info_hash_vec.size();
 
 	for(int i=0; i< start_vec_len;++i){
-		std::string tmp_mail_file = top_dir_path + mail_files[i];
-		std::string tmp_email = load_email(tmp_mail_file);
-		std::vector<std::string> emails = extract_emails_addrs_from_email(tmp_email);
-		std::vector<std::string> words = extract_words_from_email(tmp_email);
+		std::vector<std::string> words = extract_words_from_torrent_metadata(torrent_metadata);
 		if(words.size() > 0){
-			words.insert(words.end(), emails.begin(),emails.end());
-			words.erase(std::remove_if(words.begin(), words.end(),[](std::string a){ return (stop_words_map.count(a) > 0);}), words.end());
-			int word_list_size_for_email = words.size();
-			total_words_per_email += word_list_size_for_email;
 			for(int j=0; j< words.size(); ++j){
-				if(word_count_file_map.count(words[j]) > 0)
-					word_count_file_map[words[j]] += " " + std::to_string(i);
+				if(word_infohash_indices_map.count(words[j]) > 0)
+					word_infohash_indices_map[words[j]] += " " + std::to_string(i);
 				else
-					word_count_file_map[words[j]] = std::to_string(i);
+					word_infohash_indices_map[words[j]] = std::to_string(i);
 			}
-		}else{
-			files_not_mined.push_back(mail_files[i]);
-			file_index_not_used.push_back(i);
 		}
 		if( i % 10000 == 0 && i != 0)
-			std::cout << "		Emails Parsed: " << i << std::endl;
+			std::cout << "		Hashes Parsed: " << i << std::endl;
 	}
 }
 
-arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_infohash_incides_map, int& total_info_hashes, int& avg_words_per_info_hash){
+arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_infohash_indices_map, int& total_info_hashes, int& avg_words_per_info_hash){
 	//(n_rows, n_cols) format
 	arma::sp_dmat sparse_word_matrix(number_of_words, total_info_hashes);
 	std::vector<std::string> word_vector; 
-	transform(word_infohash_incides_map.begin(), word_infohash_incides_map.end(), back_inserter(word_vector), RetrieveKey());
+	transform(word_infohash_indices_map.begin(), word_infohash_indices_map.end(), back_inserter(word_vector), RetrieveKey());
 	std::sort(word_vector.begin(), word_vector.end());
 	std::cout << "	sparse matrix construction" << std::endl;
 	for(int i=0;i<number_of_words;++i){
-		std::vector<std::string> tmp_word_counts = string_split(word_infohash_incides_map[word_vector[i]]);
+		std::vector<std::string> tmp_word_counts = string_split(word_infohash_indices_map[word_vector[i]]);
 		std::map<int, int> tmp_word_counts_map;
 		std::vector<int> tmp_word_counts_keys;
 		for(int j = 0; j<tmp_word_counts.size();++j){
@@ -110,21 +100,16 @@ arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_i
 	return sparse_word_matrix;
 }
 
-void row_normalize_matrix(arma:sp_dmat& word_infohash_matrix){
-	std::cout << "	Matrix row normalization" << std::endl;
-	sp_mat::row_iterator i = m.begin_row(0);
-	sp_mat::row_iterator i_end = m.end_row(m.n_cols);
-	for (; i != i_end; ++i){
-		double normalize_sum_squared = 0;
-		for (int j=0; j< m.n_cols; j++)
-			normalize_sum_squared += std::pow((*i).col(j), 2);
-			
-		double normalize_denom = std::sqrt(normalize_sum_squared);
-		for (int j=0; j< m.n_cols; j++)
-			double normed_value = ((*i).col(j)/normalize_denom);
-			(*i).col(j) = normed_value;
-		}
-	}
+arma:sp_dmat row_normalize_matrix(arma:sp_dmat& word_infohash_matrix){
+	std::cout << "	Matrix row normalization with 2-norm" << std::endl;
+	arma:sp_dmat r_normed = arma::normalise(word_infohash_matrix, 2, 1);
+	return r_normed;
+}
+
+arma:sp_dmat col_normalize_matrix(arma:sp_dmat& word_infohash_matrix){
+	std::cout << "	Matrix col normalization with 2-norm" << std::endl;
+	arma:sp_dmat c_normed = arma::normalise(word_infohash_matrix, 2, 0);
+	return c_normed;
 }
 
 void partial_svd(arma::sp_dmat& word_infohash_matrix, arma::fmat& u_mat, arma::fvec& sigma_vec, arma::fmat& v_matrix){

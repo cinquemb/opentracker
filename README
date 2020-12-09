@@ -12,6 +12,7 @@ TODO:
 	    - get metadata
 	      - how to store metadata (mem or disk)
     - add to metdata tf-idf matrix [IN PROGRESS]
+    	- need to figure out row/col normalization? (row now)
     - re build low dimensional space matricies [IN PROGRESS]
     	- figure out how to do this non bloking
     		-std::async

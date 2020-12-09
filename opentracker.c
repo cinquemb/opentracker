@@ -179,6 +179,7 @@ static void handle_read( const int64 sock, struct ot_workstruct *ws ) {
     if( ( ws->header_size = header_complete( ws->inbuf, byte_count ) ) ) {
       ws->request = ws->inbuf;
       ws->request_size = byte_count;
+      // need to pass in search matrix information here
       http_handle_request( sock, ws );
     } else
       array_catb( &cookie->request, ws->inbuf, byte_count );
@@ -194,6 +195,7 @@ static void handle_read( const int64 sock, struct ot_workstruct *ws ) {
   while( ( ws->header_size = header_complete( array_start( &cookie->request ), array_bytes( &cookie->request ) ) ) ) {
     ws->request      = array_start( &cookie->request );
     ws->request_size = array_bytes( &cookie->request );
+    // need to pass in search matrix information here
     http_handle_request( sock, ws );
 #ifdef WANT_KEEPALIVE
     if( !ws->keep_alive )

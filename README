@@ -8,11 +8,13 @@ TODO:
     - start download to collect metadata from hash quue [IN PROGRESS]
     	- add lib curl to make outgoing request for trackers?
     	- figure out how to do this non bloking
+    		- std::async, set bool that this is running and wait for ret and pass to matrix build
 	    - get metadata
 	      - how to store metadata (mem or disk)
     - add to metdata tf-idf matrix [TODO]
     - re build low dimensional space matricies [TODO]
     	- figure out how to do this non bloking
+    		-std::async
     - search look up enpoint [TODO]
 
 You need libowfat (http://www.fefe.de/libowfat/).

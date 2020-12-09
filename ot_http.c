@@ -469,6 +469,9 @@ static ssize_t http_handle_announce( const int64 sock, struct ot_workstruct *ws,
         hex_hash[(hi * 2)] = hex_chars[(unsigned char)out_hash[hi] >> 4];
         hex_hash[(hi * 2)+1] = hex_chars[(unsigned char)out_hash[hi] & 0xf];
       }
+
+      // call metdata grabber async
+        // when metadata grabber is finnshed call matrix builder async
       free(out_hash);
       free(hex_hash);
       break;

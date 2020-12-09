@@ -89,7 +89,7 @@ install:
 
 # search
 
-LIBTORRENT=`pkg-config --cflags --libs libtorrent-rasterbar`
+LIBTORRENT=-DTORRENT_VERBOSE_LOGGING -DANSI_TERMINAL_COLORS `pkg-config --cflags --libs libtorrent-rasterbar`
 LIBCURL=`pkg-config --cflags --libs libcurl`
 LIBBOOSTSYSTEM=/usr/local/lib/libboost_system.dylib
 LIBARMADILLO=/usr/local/lib/libarmadillo.dylib
@@ -98,5 +98,5 @@ CFLAGS= -Wall -O3 -std=gnu++14 -pedantic -I/usr/local/include/
 
 
 metadata:
-	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) meta_data_client.cpp -o metadata -g $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
 

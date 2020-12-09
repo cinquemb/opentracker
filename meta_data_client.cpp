@@ -15,7 +15,8 @@
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/peer_info.hpp>
 #include <libtorrent/create_torrent.hpp>
-
+#include <libtorrent/time.hpp>
+#include <libtorrent/magnet_uri.hpp>
 
 #include <curl/curl.h>
 
@@ -51,6 +52,89 @@ std::string peer;
 // the number of times we've asked to save resume data
 // without having received a response (successful or failure)
 int num_outstanding_resume_data = 0;
+
+int hex_to_int(char in){
+	if (in >= '0' && in <= '9') return int(in) - '0';
+	if (in >= 'A' && in <= 'F') return int(in) - 'A' + 10;
+	if (in >= 'a' && in <= 'f') return int(in) - 'a' + 10;
+	return -1;
+}
+
+std::string path_append(std::string const& lhs, std::string const& rhs)
+{
+	if (lhs.empty() || lhs == ".") return rhs;
+	if (rhs.empty() || rhs == ".") return lhs;
+#define TORRENT_SEPARATOR "/"
+	bool need_sep = lhs[lhs.size()-1] != '/';
+	return lhs + (need_sep?TORRENT_SEPARATOR:"") + rhs;
+}
+
+int load_file(std::string const& filename, std::vector<char>& v, libtorrent::error_code& ec, int limit = 8000000){
+	ec.clear();
+	FILE* f = fopen(filename.c_str(), "rb");
+	if (f == NULL)
+	{
+		if(f == NULL){
+			ec.assign(errno, boost::system::get_generic_category());
+			std::cout << "fail file create: " << filename << std::endl;
+			return -1;
+		}
+	}
+
+	int r = fseek(f, 0, SEEK_END);
+	if (r != 0)
+	{
+		ec.assign(errno, boost::system::get_generic_category());
+		fclose(f);
+		std::cout << "fail file seek" << std::endl;
+		return -1;
+	}
+	long s = ftell(f);
+	if (s < 0)
+	{
+		ec.assign(errno, boost::system::get_generic_category());
+		fclose(f);
+		std::cout << "fail file tell" << std::endl;
+		return -1;
+	}
+
+	if (s > limit)
+	{
+		fclose(f);
+		return -2;
+	}
+
+	r = fseek(f, 0, SEEK_SET);
+	if (r != 0)
+	{
+		ec.assign(errno, boost::system::get_generic_category());
+		fclose(f);
+		std::cout << "fail file set" << std::endl;
+		return -1;
+	}
+
+	v.resize(s);
+	if (s == 0)
+	{
+		fclose(f);
+		return 0;
+	}
+
+	r = fread(&v[0], 1, v.size(), f);
+	if (r < 0)
+	{
+		ec.assign(errno, boost::system::get_generic_category());
+		fclose(f);
+		std::cout << "fail file read" << std::endl;
+		return -1;
+	}
+
+	fclose(f);
+
+	if (r != s) return -3;
+
+	return 0;
+}
 
 libtorrent::torrent_status const& get_active_torrent(std::vector<libtorrent::torrent_status const*> const& filtered_handles)
 {
@@ -151,43 +235,6 @@ void update_filtered_torrents(boost::unordered_set<libtorrent::torrent_status>& 
 	std::sort(filtered_handles.begin(), filtered_handles.end(), &compare_torrent);
 }
 
-int hex_to_int(char in){
-	if (in >= '0' && in <= '9') return int(in) - '0';
-	if (in >= 'A' && in <= 'F') return int(in) - 'A' + 10;
-	if (in >= 'a' && in <= 'f') return int(in) - 'a' + 10;
-	return -1;
-}
-
-std::string path_append(std::string const& lhs, std::string const& rhs)
-{
-	if (lhs.empty() || lhs == ".") return rhs;
-	if (rhs.empty() || rhs == ".") return lhs;
-
-#if defined(TORRENT_WINDOWS) || defined(TORRENT_OS2)
-#define TORRENT_SEPARATOR "\\"
-	bool need_sep = lhs[lhs.size()-1] != '\\' && lhs[lhs.size()-1] != '/';
-#else
-#define TORRENT_SEPARATOR "/"
-	bool need_sep = lhs[lhs.size()-1] != '/';
-#endif
-	return lhs + (need_sep?TORRENT_SEPARATOR:"") + rhs;
-}
-
-bool from_hex(char const *in, int len, char* out)
-{
-	for (char const* end = in + len; in < end; ++in, ++out)
-	{
-		int t = hex_to_int(*in);
-		if (t == -1) return false;
-		*out = t << 4;
-		++in;
-		t = hex_to_int(*in);
-		if (t == -1) return false;
-		*out |= t & 15;
-	}
-	return true;
-}
-
 static size_t write_callback(void *contents, size_t size, size_t nmeb, void *userp){
 	((std::string*)userp)->append((char*)contents, size * nmeb);
 	return size * nmeb;
@@ -238,16 +285,38 @@ char const* timestamp()
 	return str;
 }
 
+char const* esc(char const* code)
+{
+#ifdef ANSI_TERMINAL_COLORS
+	// this is a silly optimization
+	// to avoid copying of strings
+	enum { num_strings = 200 };
+	static char buf[num_strings][20];
+	static int round_robin = 0;
+	char* ret = buf[round_robin];
+	++round_robin;
+	if (round_robin >= num_strings) round_robin = 0;
+	ret[0] = '\033';
+	ret[1] = '[';
+	int i = 2;
+	int j = 0;
+	while (code[j]) ret[i++] = code[j++];
+	ret[i++] = 'm';
+	ret[i++] = 0;
+	return ret;
+#else
+	return "";
+#endif
+}
+
 void print_alert(libtorrent::alert const* a, std::string& str)
 {
-	using namespace libtorrent;
-
 #ifdef ANSI_TERMINAL_COLORS
-	if (a->category() & alert::error_notification)
+	if (a->category() & libtorrent::alert::error_notification)
 	{
 		str += esc("31");
 	}
-	else if (a->category() & (alert::peer_notification | alert::storage_notification))
+	else if (a->category() & (libtorrent::alert::peer_notification | libtorrent::alert::storage_notification))
 	{
 		str += esc("33");
 	}
@@ -262,6 +331,8 @@ void print_alert(libtorrent::alert const* a, std::string& str)
 
 	if (g_log_file)
 		fprintf(g_log_file, "[%s] %s\n", timestamp(),  a->message().c_str());
+
+	printf("[%s] %s\n", timestamp(), a->message().c_str());
 }
 
 int save_file(std::string const& filename, std::vector<char>& v)
@@ -290,42 +361,31 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 	, std::vector<libtorrent::torrent_status const*>& filtered_handles
 	, bool& need_resort)
 {
-	using namespace libtorrent;
-
 #ifdef TORRENT_USE_OPENSSL
-	if (torrent_need_cert_alert* p = alert_cast<torrent_need_cert_alert>(a))
+	if (libtorrent::torrent_need_cert_alert* p = libtorrent::alert_cast<libtorrent::torrent_need_cert_alert>(a))
 	{
-		torrent_handle h = p->handle;
-		std::string cert = path_append("certificates", to_hex(h.info_hash().to_string())) + ".pem";
-		std::string priv = path_append("certificates", to_hex(h.info_hash().to_string())) + "_key.pem";
+		libtorrent::torrent_handle h = p->handle;
+		std::string cert = path_append("certificates", libtorrent::to_hex(h.info_hash().to_string())) + ".pem";
+		std::string priv = path_append("certificates", libtorrent::to_hex(h.info_hash().to_string())) + "_key.pem";
 
-#ifdef TORRENT_WINDOWS
-		struct ::_stat st;
-		int ret = ::_stat(cert.c_str(), &st);
-		if (ret < 0 || (st.st_mode & _S_IFREG) == 0)
-#else
 		struct ::stat st;
 		int ret = ::stat(cert.c_str(), &st);
 		if (ret < 0 || (st.st_mode & S_IFREG) == 0)
-#endif
 		{
 			char msg[256];
 			snprintf(msg, sizeof(msg), "ERROR. could not load certificate %s: %s\n", cert.c_str(), strerror(errno));
 			if (g_log_file) fprintf(g_log_file, "[%s] %s\n", timestamp(), msg);
+			std::cout << "ERROR. could not load certificate " << std::endl;
 			return true;
 		}
 
-#ifdef TORRENT_WINDOWS
-		ret = ::_stat(priv.c_str(), &st);
-		if (ret < 0 || (st.st_mode & _S_IFREG) == 0)
-#else
 		ret = ::stat(priv.c_str(), &st);
 		if (ret < 0 || (st.st_mode & S_IFREG) == 0)
-#endif
 		{
 			char msg[256];
 			snprintf(msg, sizeof(msg), "ERROR. could not load private key %s: %s\n", priv.c_str(), strerror(errno));
 			if (g_log_file) fprintf(g_log_file, "[%s] %s\n", timestamp(), msg);
+			std::cout << "ERROR. could not load private key" << std::endl;
 			return true;
 		}
 
@@ -334,31 +394,32 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 		if (g_log_file) fprintf(g_log_file, "[%s] %s\n", timestamp(), msg);
 
 		h.set_ssl_certificate(cert, priv, "certificates/dhparams.pem", "1234");
+		std::cout << "using ssl" << std::endl;
 		h.resume();
 	}
 #endif
 
-	boost::intrusive_ptr<torrent_info const> ti;
+	boost::intrusive_ptr<libtorrent::torrent_info const> ti;
 
-	if (metadata_received_alert* p = alert_cast<metadata_received_alert>(a))
+	if (libtorrent::metadata_received_alert* p = libtorrent::alert_cast<libtorrent::metadata_received_alert>(a))
 	{
 		// if we have a monitor dir, save the .torrent file we just received in it
 		// also, add it to the files map, and remove it from the non_files list
 		// to keep the scan dir logic in sync so it's not removed, or added twice
-		torrent_handle h = p->handle;
+		libtorrent::torrent_handle h = p->handle;
 		std::cout << "received alert" << std::endl;
 		if (h.is_valid()) {
 			if (!ti) ti = h.torrent_file();
-			create_torrent ct(*ti);
-			entry te = ct.generate();
+			libtorrent::create_torrent ct(*ti);
+			libtorrent::entry te = ct.generate();
 			std::vector<char> buffer;
 			bencode(std::back_inserter(buffer), te);
-			std::string filename = ti->name() + "." + to_hex(ti->info_hash().to_string()) + ".torrent";
+			std::string filename = ti->name() + "." + libtorrent::to_hex(ti->info_hash().to_string()) + ".torrent";
 
 			std::string file_comment = ti->comment();
 			std::cout << "name:" << ti->name() << std::endl;
 			std::cout << "\t file_comment: " << file_comment << std::endl;
-			break;
+			exit(0);
 
 			filename = path_append(monitor_dir, filename);
 			save_file(filename, buffer);
@@ -367,7 +428,7 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 			non_files.erase(h);
 		}
 	}
-	else if (add_torrent_alert* p = alert_cast<add_torrent_alert>(a))
+	else if (libtorrent::add_torrent_alert* p = libtorrent::alert_cast<libtorrent::add_torrent_alert>(a))
 	{
 		std::string filename;
 		if (p->params.userdata)
@@ -379,13 +440,13 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 		if (p->error)
 		{
 			fprintf(stderr, "failed to add torrent: %s %s\n", filename.c_str(), p->error.message().c_str());
+			std::cout << "failed to add torrent" << std::endl;
 		}
 		else
 		{
-			torrent_handle h = p->handle;
-
+			libtorrent::torrent_handle h = p->handle;
 			if (!filename.empty())
-				files.insert(std::pair<const std::string, torrent_handle>(filename, h));
+				files.insert(std::pair<const std::string, libtorrent::torrent_handle>(filename, h));
 			else
 				non_files.insert(h);
 
@@ -394,9 +455,6 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 			h.set_upload_limit(torrent_upload_limit);
 			h.set_download_limit(torrent_download_limit);
 			h.use_interface(outgoing_interface.c_str());
-#ifndef TORRENT_DISABLE_RESOLVE_COUNTRIES
-			h.resolve_countries(true);
-#endif
 
 			// if we have a peer specified, connect to it
 			if (!peer.empty())
@@ -407,9 +465,9 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 					*port++ = 0;
 					char const* ip = peer.c_str();
 					int peer_port = atoi(port);
-					error_code ec;
+					libtorrent::error_code ec;
 					if (peer_port > 0)
-						h.connect_peer(tcp::endpoint(address::from_string(ip, ec), peer_port));
+						h.connect_peer(libtorrent::tcp::endpoint(libtorrent::address::from_string(ip, ec), peer_port));
 				}
 			}
 
@@ -422,55 +480,65 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 			}
 		}
 	}
-	else if (torrent_finished_alert* p = alert_cast<torrent_finished_alert>(a))
+	else if (libtorrent::torrent_finished_alert* p = libtorrent::alert_cast<libtorrent::torrent_finished_alert>(a))
 	{
 		p->handle.set_max_connections(max_connections_per_torrent / 2);
+
+		std::cout << "torrent_finished_alert" << std::endl;
 
 		// write resume data for the finished torrent
 		// the alert handler for save_resume_data_alert
 		// will save it to disk
-		torrent_handle h = p->handle;
+		libtorrent::torrent_handle h = p->handle;
 		h.save_resume_data();
 		++num_outstanding_resume_data;
 	}
-	else if (save_resume_data_alert* p = alert_cast<save_resume_data_alert>(a))
+	else if (libtorrent::save_resume_data_alert* p = libtorrent::alert_cast<libtorrent::save_resume_data_alert>(a))
 	{
 		--num_outstanding_resume_data;
-		torrent_handle h = p->handle;
+		libtorrent::torrent_handle h = p->handle;
 		TORRENT_ASSERT(p->resume_data);
 		if (p->resume_data)
 		{
 			std::vector<char> out;
 			bencode(std::back_inserter(out), *p->resume_data);
-			libtorrent::torrent_status st = h.status(torrent_handle::query_save_path);
-			save_file(path_append(st.save_path, path_append(".resume", to_hex(st.info_hash.to_string()) + ".resume")), out);
+			libtorrent::torrent_status st = h.status(libtorrent::torrent_handle::query_save_path);
+			save_file(path_append(st.save_path, path_append(".resume", libtorrent::to_hex(st.info_hash.to_string()) + ".resume")), out);
 			if (h.is_valid()
 				&& non_files.find(h) == non_files.end()
 				&& std::find_if(files.begin(), files.end()
 					, boost::bind(&handles_t::value_type::second, _1) == h) == files.end())
 				ses.remove_torrent(h);
+
+			std::cout << "save_resume_data_alert" << std::endl;
 		}
 	}
-	else if (save_resume_data_failed_alert* p = alert_cast<save_resume_data_failed_alert>(a))
+	else if (libtorrent::save_resume_data_failed_alert* p = libtorrent::alert_cast<libtorrent::save_resume_data_failed_alert>(a))
 	{
 		--num_outstanding_resume_data;
-		torrent_handle h = p->handle;
+		libtorrent::torrent_handle h = p->handle;
+		std::cout << "save_resume_data_failed_alert" << std::endl;
 		if (h.is_valid()
 			&& non_files.find(h) == non_files.end()
 			&& std::find_if(files.begin(), files.end()
-				, boost::bind(&handles_t::value_type::second, _1) == h) == files.end())
+				, boost::bind(&handles_t::value_type::second, _1) == h) == files.end()){
+
+			std::string file_comment = h.torrent_file()->comment();
+			std::cout << "\t file_comment: " << file_comment << std::endl;
 			ses.remove_torrent(h);
+		}
 	}
-	else if (torrent_paused_alert* p = alert_cast<torrent_paused_alert>(a))
+	else if (libtorrent::torrent_paused_alert* p = libtorrent::alert_cast<libtorrent::torrent_paused_alert>(a))
 	{
 		// write resume data for the finished torrent
 		// the alert handler for save_resume_data_alert
 		// will save it to disk
-		torrent_handle h = p->handle;
+		libtorrent::torrent_handle h = p->handle;
 		h.save_resume_data();
 		++num_outstanding_resume_data;
+		std::cout << "torrent_paused_alert" << std::endl;
 	}
-	else if (state_update_alert* p = alert_cast<state_update_alert>(a))
+	else if (libtorrent::state_update_alert* p = libtorrent::alert_cast<libtorrent::state_update_alert>(a))
 	{
 		bool need_filter_update = false;
 		for (std::vector<libtorrent::torrent_status>::iterator i = p->status.begin();
@@ -486,6 +554,7 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 				need_filter_update = true;
 			((libtorrent::torrent_status&)*j) = *i;
 		}
+		std::cout << "state_update_alert" << std::endl;
 		if (need_filter_update)
 			update_filtered_torrents(all_handles, filtered_handles, counters);
 
@@ -518,6 +587,9 @@ int main(int argc, char* argv[])
 	int counters[torrents_max];
 	memset(counters, 0, sizeof(counters));
 
+	libtorrent::error_code ec;
+	std::vector<char> in;
+
 	libtorrent::session ses(libtorrent::fingerprint("LT", LIBTORRENT_VERSION_MAJOR, LIBTORRENT_VERSION_MINOR, 0, 0)
 		, libtorrent::session::add_default_plugins
 		, libtorrent::alert::all_categories
@@ -526,40 +598,50 @@ int main(int argc, char* argv[])
 			+ libtorrent::alert::debug_notification
 			+ libtorrent::alert::stats_notification));
 
+
+	if (load_file(".ses_state", in, ec) == 0){
+		libtorrent::lazy_entry e;
+		if (libtorrent::lazy_bdecode(&in[0], &in[0] + in.size(), e, ec) == 0)
+			ses.load_state(e);
+	}
+
 	// load the torrents
 	std::vector<libtorrent::add_torrent_params> magnet_links;
 	std::vector<std::string> torrents;
 	int listen_port = 6881;
 	int allocation_mode = libtorrent::storage_mode_sparse;
 	std::string save_path(".");
-	
 	std::string bind_to_interface = "";
-
 	settings.active_seeds = 0;
-	settings.active_limit = 0;
-	libtorrent::sha1_hash info_hash;
+	settings.active_limit = 50;
+	settings.active_downloads = 50;
+	//libtorrent::sha1_hash info_hash;
 	// test torrents: https://webtorrent.io/free-torrents
 	std::string in_hash = argv[1];
-	from_hex(in_hash.c_str(), 40, (char*)&info_hash[0]);
+	std::cout << "in_hash: " << in_hash << std::endl;
 	libtorrent::add_torrent_params p;
-	// distable storage
-	p.storage = libtorrent::disabled_storage_constructor;
-	// disable share mode
-	p.flags |= libtorrent::add_torrent_params::flag_share_mode;
+
 	// add tracker
 	// select from random (https://ngosang.github.io/trackerslist/trackers_all.txt)
-	std::string hardcode_tracker = "udp://tracker.opentrackr.org:1337/announce";
-	p.trackers.push_back(hardcode_tracker.c_str() + 41);
+	//std::string hardcode_tracker = "http://tracker.opentrackr.org:1337/announce";
+	//p.trackers.push_back(hardcode_tracker.c_str() + 41);
 	// add non hex info path
-	p.info_hash = info_hash;
+	//p.info_hash = info_hash;
 	// save torrent to dev null
-	p.save_path = "/dev/null";
+	p.save_path = save_path;
+	int ret = mkdir(path_append(save_path, ".resume").c_str(), 0777);
+	if (ret < 0)
+		fprintf(stderr, "failed to create resume file directory: (%d) %s\n"
+			, errno, strerror(errno));
 	p.storage_mode = (libtorrent::storage_mode_t)allocation_mode;
-	p.flags |= libtorrent::add_torrent_params::flag_paused;
-	p.flags &= ~libtorrent::add_torrent_params::flag_duplicate_is_error;
-	p.flags |= libtorrent::add_torrent_params::flag_auto_managed;
+	p.url = in_hash;
+	libtorrent::add_torrent_params tmp;
+	ec.clear();
+	libtorrent::parse_magnet_uri(in_hash, tmp, ec);
+	std::string filename = path_append(save_path, path_append(".resume"
+		, libtorrent::to_hex(tmp.info_hash.to_string()) + ".resume"));
+	load_file(filename.c_str(), p.resume_data, ec);
 	magnet_links.push_back(p);
-	libtorrent::error_code ec;
 
 	// start torrent session
 	if (start_lsd)
@@ -573,20 +655,17 @@ int main(int argc, char* argv[])
 	ses.set_proxy(ps);
 	ses.listen_on(std::make_pair(listen_port, listen_port)
 		, ec, bind_to_interface.c_str());
-	if (ec)
-	{
+	if (ec){
 		fprintf(stderr, "failed to listen%s%s on ports %d-%d: %s\n"
 			, bind_to_interface.empty() ? "" : " on ", bind_to_interface.c_str()
 			, listen_port, listen_port+1, ec.message().c_str());
 	}
 
-
 	libtorrent::dht_settings dht;
 	dht.privacy_lookups = true;
 	ses.set_dht_settings(dht);
 
-	if (start_dht)
-	{
+	if (start_dht){
 		settings.use_dht_as_fallback = false;
 		ses.add_dht_router(std::make_pair(
 			std::string("router.bittorrent.com"), 6881));
@@ -596,7 +675,6 @@ int main(int argc, char* argv[])
 			std::string("router.bitcomet.com"), 6881));
 		ses.start_dht();
 	}
-
 
 	settings.user_agent = "opentracker metadata crawler";
 	settings.choking_algorithm = libtorrent::session_settings::auto_expand_choker;
@@ -617,7 +695,7 @@ int main(int argc, char* argv[])
 	while (loop_limit > 1 || loop_limit == 0){
 		++tick;
 
-		std::cout << "start loop" << std::endl;
+		//std::cout << "start loop" << std::endl;
 		ses.post_torrent_updates();
 		if (active_torrent >= int(filtered_handles.size())) active_torrent = filtered_handles.size() - 1;
 		if (active_torrent >= 0)
@@ -646,9 +724,12 @@ int main(int argc, char* argv[])
 		for (std::deque<libtorrent::alert*>::iterator i = alerts.begin()
 			, end(alerts.end()); i != end; ++i)
 		{
+			//std::cout << "in alert queue check" << std::endl;
 			bool need_resort = false;
 			TORRENT_TRY
 			{
+				//std::string event_string;
+				//print_alert(*i, event_string);
 				if (!::handle_alert(ses, *i, files, non_files, counters
 					, all_handles, filtered_handles, need_resort))
 				{
@@ -669,20 +750,19 @@ int main(int argc, char* argv[])
 			delete *i;
 		}
 		alerts.clear();
-
-
-		libtorrent::session_status sess_stat = ses.status();
+		/*libtorrent::session_status sess_stat = ses.status();
 		// get metadata
 		libtorrent::torrent_status const* st = 0;
 		if (!filtered_handles.empty()) st = &get_active_torrent(filtered_handles);
 		if (st && st->handle.is_valid())
 		{
-			std::string file_comment = st->handle.torrent_file()->comment();
-			std::cout << "name:" << st->name << std::endl;
-			std::cout << "\t file_comment: " << file_comment << std::endl;
-			break;
-		}
+			std::cout << "here in get metadata" << std::endl;
+			//std::string file_comment = st->handle.torrent_file()->comment();
+			std::cout << "\t\tname:" << st->name << std::endl;
+			//std::cout << "\t file_comment: " << file_comment << std::endl;
+			//break;
+		}*/
 
-		std::cout << "end loop" << std::endl;
+		libtorrent::sleep(1000);
 	}
 }

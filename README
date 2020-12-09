@@ -11,8 +11,8 @@ TODO:
     		- std::async, set bool that this is running and wait for ret and pass to matrix build
 	    - get metadata
 	      - how to store metadata (mem or disk)
-    - add to metdata tf-idf matrix [TODO]
-    - re build low dimensional space matricies [TODO]
+    - add to metdata tf-idf matrix [IN PROGRESS]
+    - re build low dimensional space matricies [IN PROGRESS]
     	- figure out how to do this non bloking
     		-std::async
     - search look up enpoint [TODO]

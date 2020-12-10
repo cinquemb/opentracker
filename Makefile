@@ -96,7 +96,14 @@ LIBARMADILLO=/usr/local/lib/libarmadillo.dylib
 CPP=ccache clang++ -fcolor-diagnostics
 CFLAGS= -Wall -O3 -std=gnu++14 -pedantic -I/usr/local/include/
 
+MT_HEADERS=trackerlogic.h scan_urlencoded_query.h ot_mutex.h ot_stats.h ot_vector.h ot_clean.h ot_udp.h ot_iovec.h ot_fullscrape.h ot_accesslist.h ot_http.h ot_livesync.h ot_rijndael.h
+MT_SOURCES=ot_metadata.cpp
+
 
 metadata:
-	$(CPP) meta_data_client.cpp -o metadata $(CFLAGS) $(LIBARMADILLO) $(LIBCURL) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) -c ot_metadata.cpp -o ot_metadata.o $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) -c meta_data_client.cpp -o meta_data_client.o $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+	$(CPP) ot_metadata.o meta_data_client.o -o metadata $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
+search:
+	$(CPP) ot_search.cpp -o search $(CFLAGS) $(LIBARMADILLO)
 

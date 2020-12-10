@@ -17,6 +17,7 @@ TODO:
     	- figure out how to do this non bloking
     		-std::async
     - search look up enpoint [TODO]
+    	- need to figure out proper dimensions of maping search query to low dim space of partial svds
 
 You need libowfat (http://www.fefe.de/libowfat/).
 

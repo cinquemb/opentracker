@@ -1,6 +1,19 @@
 /* Opentracker */
 #include "ot_tracker_crawl.hpp"
 
+bool is_use_http_only = true;
+std::string http_token = "http";
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
 static size_t write_callback(void *contents, size_t size, size_t nmeb, void *userp){
 	((std::string*)userp)->append((char*)contents, size * nmeb);
 	return size * nmeb;
@@ -40,4 +53,24 @@ std::string get_data_from_url(std::string& url, std::vector<std::string>& header
 	}
 
 	return read_buffer;
+}
+
+std::vector<std::string> get_tracker_urls(){
+	std::string tracker_index_url = "https://ngosang.github.io/trackerslist/trackers_best.txt";
+	std::vector<std::string> headers;
+	std::string tracker_data = get_data_from_url(tracker_index_url, headers);
+	std::vector<std::string> trackers_unfilt = split(tracker_data, '\n');
+	std::vector<std::string> trackers;
+	for (int i=0; i< trackers_unfilt.size(); ++i){
+		if (is_use_http_only){
+			if (trackers_unfilt[i].find(http_token) != std::string::npos){
+				trackers.push_back(trackers_unfilt[i]);
+			}
+		}else{
+			if (trackers_unfilt[i].find("://") != std::string::npos){
+				trackers.push_back(trackers_unfilt[i]);
+			}
+		}
+	}
+	return trackers;
 }

@@ -354,11 +354,11 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 	return false;
 }
 
-std::string get_info_hash_metadata(std::string& magnet_uri){
+std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet_uris){
 	libtorrent::session_settings settings;
 	libtorrent::proxy_settings ps;
 
-	std::string output;
+	std::vector<std::string> output;
 
 	int active_torrent = 0;
 	
@@ -406,18 +406,16 @@ std::string get_info_hash_metadata(std::string& magnet_uri){
 	settings.active_downloads = 50;
 	//libtorrent::sha1_hash info_hash;
 	// test torrents: https://webtorrent.io/free-torrents
-	std::cout << "magnet_uri: " << magnet_uri << std::endl;
-	libtorrent::add_torrent_params p;
 
-	// add tracker
-	// select from random (https://ngosang.github.io/trackerslist/trackers_all.txt)
-	p.save_path = save_path;
-	p.storage_mode = (libtorrent::storage_mode_t)allocation_mode;
-	p.url = magnet_uri;
-	libtorrent::add_torrent_params tmp;
-	ec.clear();
-	libtorrent::parse_magnet_uri(magnet_uri, tmp, ec);
-	magnet_links.push_back(p);
+	for (int i=0; i<magnet_uris.size(); i++){
+		libtorrent::add_torrent_params p;
+		// add tracker
+		// select from random (https://ngosang.github.io/trackerslist/trackers_all.txt)
+		p.save_path = save_path;
+		p.storage_mode = (libtorrent::storage_mode_t)allocation_mode;
+		p.url = magnet_uris[i];
+		magnet_links.push_back(p);
+	}
 
 	// start torrent session
 	if (start_lsd)
@@ -516,10 +514,16 @@ std::string get_info_hash_metadata(std::string& magnet_uri){
 				boost::intrusive_ptr<libtorrent::torrent_info const> ti = h.torrent_file();
 				std::string file_comment = ti->comment();
 				std::string torrent_name = ti->name();
-				output = torrent_name + " " + file_comment;
-				return output;
+				std::string torrent_url = libtorrent::make_magnet_uri(h);
+				std::string metadata = torrent_url + " -> " + torrent_name + " " + file_comment;
+				std::cout << "active_torrent(s): " << active_torrent << " metadata: " << metadata << std::endl;
+				ses.remove_torrent(h);
+				output.push_back(metadata);
+				has_rec_metadata = false;
 			}
 		}
+		if (output.size() == magnet_uris.size())
+			return output;
 		libtorrent::sleep(1000);
 	}
 

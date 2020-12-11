@@ -3,4 +3,9 @@
 
 #include <curl/curl.h>
 
+#include <vector>
+#include <string>
+#include <sstream>
+
+extern std::vector<std::string> get_tracker_urls();
 #endif

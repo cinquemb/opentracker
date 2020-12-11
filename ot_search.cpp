@@ -116,6 +116,7 @@ double compute_cosine_theta_distance(arma::dmat& search_query_low_dimensional_sp
 	}
 }
 
+// step 6
 std::vector<std::pair<int, double> > search_info_hash(std::string& search_query, std::map<std::string,int>& word_index_map){
 	int word_vector_size = word_infohash_indices_map.size();
 	std::transform(search_query.begin(), search_query.end(), search_query.begin(), [](unsigned char c) -> unsigned char { return std::tolower(c); });
@@ -184,7 +185,7 @@ std::vector<std::pair<int, double> > search_info_hash(std::string& search_query,
 
 /* search low dimiensional space rep  below */
 
-
+// step 5
 void start_right_hand_creation(arma::dmat u_mat, arma::dvec sigma_vec, arma::dmat v_matrix, arma::dmat& isigma_ut, arma::dmat& isigma_vt){
 	arma::dmat m_sigma_i = arma::diagmat(sigma_vec);    
     
@@ -222,7 +223,8 @@ std::vector<std::string> extract_words_from_torrent_metadata(std::string &torren
 	return words;
 }
 
-void parse_words_and_info_hash(std::string& torrent_metadata, std::string& top_dir_path, std::map<std::string, std::string>& word_infohash_indices_map, std::vector<std::string>& info_hash_vec){
+// step 1
+void parse_words_and_info_hash(std::string& torrent_metadata, std::map<std::string, std::string>& word_infohash_indices_map, std::vector<std::string>& info_hash_vec){
 	std::cout << "	Parsing info hashes and Constructing Matrix" << std::endl;
 	int start_vec_len = info_hash_vec.size();
 
@@ -241,7 +243,8 @@ void parse_words_and_info_hash(std::string& torrent_metadata, std::string& top_d
 	}
 }
 
-arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_infohash_indices_map, int& total_info_hashes, int& avg_words_per_info_hash, std::map<std::string,int>&  word_index_map){
+//step 2
+arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_infohash_indices_map, int& total_info_hashes, std::map<std::string,int>&  word_index_map){
 	//(n_rows, n_cols) format
 	int number_of_words = word_infohash_indices_map.size();
 	arma::sp_dmat sparse_word_matrix(number_of_words, total_info_hashes);
@@ -281,6 +284,7 @@ arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_i
 	return sparse_word_matrix;
 }
 
+//step 3
 void row_normalize_matrix(arma::sp_dmat& word_infohash_matrix){
 	std::cout << "	Matrix row normalization with 2-norm" << std::endl;
 	word_infohash_matrix = arma::normalise(word_infohash_matrix, 2, 1);
@@ -291,6 +295,7 @@ void col_normalize_matrix(arma::sp_dmat& word_infohash_matrix){
 	word_infohash_matrix = arma::normalise(word_infohash_matrix, 2, 0);
 }
 
+//step 4
 void partial_svd(arma::sp_dmat& word_infohash_matrix, arma::dmat& u_mat, arma::dvec& sigma_vec, arma::dmat& v_matrix){
 	int dims = 200;
 	bool svds_good = arma::svds(u_mat, sigma_vec, v_matrix, word_infohash_matrix, dims);

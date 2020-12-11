@@ -42,6 +42,6 @@ extern char const* timestamp();
 extern char const* esc(char const* code);
 extern void print_alert(libtorrent::alert const* a, std::string& str);
 extern bool handle_alert(libtorrent::session& ses, libtorrent::alert* a, handles_t& files, std::set<libtorrent::torrent_handle>& non_files, int* counters, boost::unordered_set<libtorrent::torrent_status>& all_handles, std::vector<libtorrent::torrent_status const*>& filtered_handles, bool& need_resort, bool& has_rec_metadata, int& num_outstanding_resume_data, int& active_torrent);
-extern std::string get_info_hash_metadata(std::string& magnet_uri);
+extern std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet_uris);
 
 #endif

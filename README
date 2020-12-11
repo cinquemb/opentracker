@@ -11,8 +11,11 @@ TODO:
     		- std::async, set bool that this is running and wait for ret and pass to matrix build
 	    - get metadata
 	      - how to store metadata (mem or disk)
+	      - look up timer for info_hash?
+	      	- temp block list for info_hash that timeout
     - add to metdata tf-idf matrix [IN PROGRESS]
     	- need to figure out row/col normalization? (row now)
+    	- may need to split tf-info_hash over many matricies (~500k (docs) x ~50k (words), opentracker handles ~10M hashes per day -> ~20 tf-idf matricies and their low dim space reps)
     - re build low dimensional space matricies [IN PROGRESS]
     	- figure out how to do this non bloking
     		-std::async

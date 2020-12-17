@@ -1,27 +1,7 @@
 /* Opentracker */
 #include "ot_search.hpp"
 
-//info_hash vector
-std::vector<std::string> info_hash_vec;
-// word -> string of index of info hashes
-// if word is seen with info hash, append index of infohash from vec
-std::map<std::string, std::string> word_infohash_indices_map;
-
-// matrix where rows -> info_hash, colums -> words
-arma::sp_dmat word_infohash_matrix;
-
-
-std::map<std::string,int>  word_index_map;
-
-arma::dmat u_mat;
-arma::dvec sigma_vec;
-arma::dmat v_matrix;
-
-arma::dmat isigma_ut;
-arma::dmat isigma_vt;
-
-
-template <class T1, class T2, class Pred = std::greater<T2> >
+template <class T1, class T2, class Pred = std::greater<T2>>
 struct sort_pair_second {
     bool operator()(const std::pair<T1,T2>&left, const std::pair<T1,T2>&right) {
         Pred p;
@@ -117,7 +97,7 @@ double compute_cosine_theta_distance(arma::dmat& search_query_low_dimensional_sp
 }
 
 // step 6
-std::vector<std::pair<int, double> > search_info_hash(std::string& search_query, std::map<std::string,int>& word_index_map){
+std::vector<std::pair<int, double>> search_info_hash(std::string& search_query, std::map<std::string,int>& word_index_map){
 	int word_vector_size = word_infohash_indices_map.size();
 	std::transform(search_query.begin(), search_query.end(), search_query.begin(), [](unsigned char c) -> unsigned char { return std::tolower(c); });
 	std::vector<std::string> search_words = split_string(search_query, {" "});
@@ -148,14 +128,14 @@ std::vector<std::pair<int, double> > search_info_hash(std::string& search_query,
     arma::dmat search_low_dimensional_space_doc_vector = isigma_ut * search_doc_vector;
     arma::dmat sigma_search_low_dimensional_space_doc_vector = sigma * search_low_dimensional_space_doc_vector;
 
-    arma::sp_dmat::const_row_iterator i = word_infohash_matrix.begin_row(1);
-	arma::sp_dmat::const_row_iterator i_end = word_infohash_matrix.end_row(word_infohash_matrix.n_rows);
+    arma::sp_dmat::const_row_iterator i = infohash_word_matrix.begin_row(1);
+	arma::sp_dmat::const_row_iterator i_end = infohash_word_matrix.end_row(infohash_word_matrix.n_rows);
 	for (; i != i_end; ++i){
 		arma::dmat temp_doc_col_vector(word_vector_size,1);
 		temp_doc_col_vector.zeros();
 		bool is_empty = true;
 
-		arma::sp_dmat tmp_row = word_infohash_matrix.row(i.row());
+		arma::sp_dmat tmp_row = infohash_word_matrix.row(i.row());
 
 		arma::sp_dmat::iterator j = tmp_row.begin();
 		arma::sp_dmat::iterator j_end = tmp_row.end();
@@ -285,20 +265,20 @@ arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_i
 }
 
 //step 3
-void row_normalize_matrix(arma::sp_dmat& word_infohash_matrix){
+void row_normalize_matrix(arma::sp_dmat& infohash_word_matrix){
 	std::cout << "	Matrix row normalization with 2-norm" << std::endl;
-	word_infohash_matrix = arma::normalise(word_infohash_matrix, 2, 1);
+	infohash_word_matrix = arma::normalise(infohash_word_matrix, 2, 1);
 }
 
-void col_normalize_matrix(arma::sp_dmat& word_infohash_matrix){
+void col_normalize_matrix(arma::sp_dmat& infohash_word_matrix){
 	std::cout << "	Matrix col normalization with 2-norm" << std::endl;
-	word_infohash_matrix = arma::normalise(word_infohash_matrix, 2, 0);
+	infohash_word_matrix = arma::normalise(infohash_word_matrix, 2, 0);
 }
 
 //step 4
-void partial_svd(arma::sp_dmat& word_infohash_matrix, arma::dmat& u_mat, arma::dvec& sigma_vec, arma::dmat& v_matrix){
+void partial_svd(arma::sp_dmat& infohash_word_matrix, arma::dmat& u_mat, arma::dvec& sigma_vec, arma::dmat& v_matrix){
 	int dims = 200;
-	bool svds_good = arma::svds(u_mat, sigma_vec, v_matrix, word_infohash_matrix, dims);
+	bool svds_good = arma::svds(u_mat, sigma_vec, v_matrix, infohash_word_matrix, dims);
 	if(!svds_good)
 		std::cout << "		Partial decomp failed" << std::endl;
 	else{

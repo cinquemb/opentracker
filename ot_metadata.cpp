@@ -13,6 +13,11 @@ std::string peer;
 
 /* torrent stuff below */
 
+double get_time(){
+    double cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.;
+    return cur_time;
+}
+
 std::string path_append(std::string const& lhs, std::string const& rhs)
 {
 	if (lhs.empty() || lhs == ".") return rhs;
@@ -354,13 +359,14 @@ bool handle_alert(libtorrent::session& ses, libtorrent::alert* a
 	return false;
 }
 
-std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet_uris){
+std::vector<std::string> get_info_hash_metadata(std::vector<std::string> magnet_uris){
 	libtorrent::session_settings settings;
 	libtorrent::proxy_settings ps;
 
 	std::vector<std::string> output;
 
 	int active_torrent = 0;
+	double max_time_check = 30.0; //seconds
 	
 	// the number of times we've asked to save resume data
 	// without having received a response (successful or failure)
@@ -442,6 +448,10 @@ std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet
 			std::string("router.utorrent.com"), 6881));
 		ses.add_dht_router(std::make_pair(
 			std::string("router.bitcomet.com"), 6881));
+		ses.add_dht_router(std::make_pair(
+			std::string("dht.transmissionbt.com"), 6881));
+		ses.add_dht_router(std::make_pair(
+			std::string("dht.aelitis.com"), 6881));
 		ses.start_dht();
 	}
 
@@ -460,23 +470,16 @@ std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet
 	int tick = 0;
 	bool has_rec_metadata = false;
 
+	double start_time = get_time();
+
+	int total_count = magnet_uris.size();
+
 	while (loop_limit > 1 || loop_limit == 0){
 		++tick;
 
 		//std::cout << "start loop" << std::endl;
 		ses.post_torrent_updates();
 		if (active_torrent >= int(filtered_handles.size())) active_torrent = filtered_handles.size() - 1;
-		if (active_torrent >= 0)
-		{
-			// ask for distributed copies for the selected torrent. Since this
-			// is a somewhat expensive operation, don't do it by default for
-			// all torrents
-			libtorrent::torrent_status const& h = *filtered_handles[active_torrent];
-			h.handle.status(
-				libtorrent::torrent_handle::query_distributed_copies
-				| libtorrent::torrent_handle::query_pieces
-				| libtorrent::torrent_handle::query_verified_pieces);
-		}
 
 		std::vector<libtorrent::feed_handle> feeds;
 		ses.get_feeds(feeds);
@@ -487,13 +490,11 @@ std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet
 
 		// loop through the alert queue to see if anything has happened.
 		std::deque<libtorrent::alert*> alerts;
-		ses.pop_alerts(&alerts);
-		std::string now = timestamp();
+		ses.pop_alerts(&alerts);		
 		for (std::deque<libtorrent::alert*>::iterator i = alerts.begin()
 			, end(alerts.end()); i != end; ++i){
 			bool need_resort = false;
-			TORRENT_TRY
-			{
+			TORRENT_TRY {
 				handle_alert(ses, *i, files, non_files, counters, all_handles, filtered_handles, need_resort, has_rec_metadata, num_outstanding_resume_data, active_torrent);
 			} TORRENT_CATCH(std::exception& e) {}
 
@@ -505,24 +506,39 @@ std::vector<std::string> get_info_hash_metadata(std::vector<std::string>& magnet
 		}
 		alerts.clear();
 		
+		double cur_time = get_time();
+		libtorrent::torrent_status const* st = 0;
+		if (!filtered_handles.empty()) st = &get_active_torrent(filtered_handles, active_torrent);
 		if(has_rec_metadata){
-			libtorrent::torrent_status const* st = 0;
-			if (!filtered_handles.empty()) st = &get_active_torrent(filtered_handles, active_torrent);
-			if (st && st->handle.is_valid())
-			{
+			if (st && st->handle.is_valid()){
 				libtorrent::torrent_handle h = st->handle;
 				boost::intrusive_ptr<libtorrent::torrent_info const> ti = h.torrent_file();
 				std::string file_comment = ti->comment();
 				std::string torrent_name = ti->name();
 				std::string torrent_url = libtorrent::make_magnet_uri(h);
 				std::string metadata = torrent_url + " -> " + torrent_name + " " + file_comment;
-				std::cout << "active_torrent(s): " << active_torrent << " metadata: " << metadata << std::endl;
+				std::cout << "active_torrent(s): " << active_torrent << " metadata: " << metadata << " dl_elapsed: "<<  (cur_time - start_time) << std::endl;
 				ses.remove_torrent(h);
 				output.push_back(metadata);
 				has_rec_metadata = false;
+				total_count--;
+				update_filtered_torrents(all_handles, filtered_handles, counters, active_torrent);
+			}
+		} else {
+			if (st && st->handle.is_valid()){
+				if ((cur_time - start_time) > max_time_check){
+					libtorrent::torrent_handle h = st->handle;
+					std::string torrent_url = libtorrent::make_magnet_uri(h);
+					ses.remove_torrent(h);
+					std::cout << "\t\tskipping(s): " << torrent_url << " dl_wait: "<<  (cur_time - start_time) << std::endl;
+					has_rec_metadata = false;
+					start_time = get_time();
+					total_count--;
+					update_filtered_torrents(all_handles, filtered_handles, counters, active_torrent);
+				}
 			}
 		}
-		if (output.size() == magnet_uris.size())
+		if (total_count == 0)
 			return output;
 		libtorrent::sleep(1000);
 	}

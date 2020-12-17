@@ -56,7 +56,7 @@ std::string get_data_from_url(std::string& url, std::vector<std::string>& header
 }
 
 std::vector<std::string> get_tracker_urls(){
-	std::string tracker_index_url = "https://ngosang.github.io/trackerslist/trackers_best.txt";
+	std::string tracker_index_url = "https://ngosang.github.io/trackerslist/trackers_all.txt";
 	std::vector<std::string> headers;
 	std::string tracker_data = get_data_from_url(tracker_index_url, headers);
 	std::vector<std::string> trackers_unfilt = split(tracker_data, '\n');

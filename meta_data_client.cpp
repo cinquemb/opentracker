@@ -14,7 +14,11 @@ std::map<std::string, std::string> word_infohash_indices_map;
 // matrix where rows -> words, colums -> info_hash
 arma::sp_dmat infohash_word_matrix;
 
+// word relationship to index in infohash_word_matrix;
 std::map<std::string,int>  word_index_map;
+
+// check if infohash is already been processed
+std::map<std::string,int>  info_hash_index_map;
 
 arma::dmat u_mat;
 arma::dvec sigma_vec;
@@ -64,7 +68,65 @@ int main(int argc, char* argv[]){
 	//std::vector<std::string> metadata = get_info_hash_metadata(magnet_uris);
 	for (int i=0; i<magnet_uris.size(); i++){
 		std::vector<std::string> metadata = get_info_hash_metadata({magnet_uris[i]});
-		if (metadata.size() > 0)
-			std::cout << metadata[0] << std::endl;		
+		if (metadata.size() > 0){
+			std::cout << metadata[0] << std::endl;
+			std::vector<std::string> left_hash_filt = split_string(magnet_uris[i], {"magnet:?xt=urn:btih:"});
+			std::vector<std::string> right_hash_filt = split_string(left_hash_filt[1], {"&tr="});
+			std::string info_hash = right_hash_filt[0];
+			std::vector<std::string> filtered_metadata = split_string(metadata[0], {"->"});
+			std::string torrent_metadata = filtered_metadata[1];
+			if (info_hash_index_map.count(info_hash) == 0){
+				info_hash_index_map[info_hash] = 1;
+				info_hash_vec.push_back(info_hash);
+			
+				parse_words_and_info_hash(
+					torrent_metadata,
+					word_infohash_indices_map, 
+					info_hash_vec
+				);
+			}
+			
+		}
 	}
+
+	/* search index stuff below */
+
+	// TODO: need ot check if matrix already exist and do append only, would need seperate normed matrix
+	int info_hash_vec_size = info_hash_vec.size();
+	infohash_word_matrix = construct_sparse_matrix(
+		word_infohash_indices_map,
+		info_hash_vec_size,
+		word_index_map
+	);
+
+	row_normalize_matrix(infohash_word_matrix);
+	
+	partial_svd(infohash_word_matrix,
+		u_mat,
+		sigma_vec,
+		v_matrix
+	);
+	/* search index stuff above */
+
+	/* search low dimiensional space rep  below */
+	start_right_hand_creation(
+		u_mat,
+		sigma_vec,
+		v_matrix,
+		isigma_ut, 
+		isigma_vt
+	);
+	/* search low dimiensional space rep  above */
+
+	/* search lookup below */
+	/* std::vector<std::pair<int, double>> search_result = search_info_hash(
+		search_query,
+		word_index_map, 
+		word_infohash_indices_map, 
+		sigma_vec,
+		isigma_ut, 
+		infohash_word_matrix
+	);
+	*/
+	/* search lookup above */
 }

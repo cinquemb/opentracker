@@ -97,7 +97,7 @@ double compute_cosine_theta_distance(arma::dmat& search_query_low_dimensional_sp
 }
 
 // step 6
-std::vector<std::pair<int, double>> search_info_hash(std::string& search_query, std::map<std::string,int>& word_index_map){
+std::vector<std::pair<int, double>> search_info_hash(std::string& search_query, std::map<std::string,int>& word_index_map, std::map<std::string, std::string>& word_infohash_indices_map, arma::dvec& sigma_vec, arma::dmat& isigma_ut, arma::sp_dmat& infohash_word_matrix){
 	int word_vector_size = word_infohash_indices_map.size();
 	std::transform(search_query.begin(), search_query.end(), search_query.begin(), [](unsigned char c) -> unsigned char { return std::tolower(c); });
 	std::vector<std::string> search_words = split_string(search_query, {" "});

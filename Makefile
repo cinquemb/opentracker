@@ -104,7 +104,8 @@ metadata:
 	$(CPP) -c ot_tracker_crawl.cpp -o ot_tracker_crawl.o $(CFLAGS) $(LIBCURL)
 	$(CPP) -c ot_metadata.cpp -o ot_metadata.o $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
 	$(CPP) -c meta_data_client.cpp -o meta_data_client.o $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM)
-	$(CPP) ot_tracker_crawl.o ot_metadata.o meta_data_client.o -o metadata $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM) $(LIBCURL)
+	$(CPP) -c ot_search.cpp -o ot_search.o $(CFLAGS) $(LIBARMADILLO)
+	$(CPP) ot_search.o ot_tracker_crawl.o ot_metadata.o meta_data_client.o -o metadata $(CFLAGS) $(LIBTORRENT) $(LIBBOOSTSYSTEM) $(LIBCURL) $(LIBARMADILLO)
 search:
 	$(CPP) ot_search.cpp -o search $(CFLAGS) $(LIBARMADILLO)
 

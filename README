@@ -5,7 +5,7 @@ TODO:
     - get hex hash [DONE]
       - how to store hash (mem or disk)
       	- send hash to global collection queue
-    - start download to collect metadata from hash quue [IN PROGRESS]
+    - start download to collect metadata from hash quue [DONE]
     	- add lib curl to make outgoing request for trackers?
     	- figure out how to do this non bloking
     		- std::async, set bool that this is running and wait for ret and pass to matrix build
@@ -13,7 +13,7 @@ TODO:
 	      - how to store metadata (mem or disk)
 	      - look up timer for info_hash?
 	      	- temp block list for info_hash that timeout
-    - add to metdata tf-idf matrix [IN PROGRESS]
+    - add to metdata tf-idf matrix [DONE]
     	- need to figure out row/col normalization? (row now)
     	- may need to split tf-info_hash over many matricies (~500k (docs) x ~50k (words), opentracker handles ~10M hashes per day -> ~20 tf-idf matricies and their low dim space reps)
     - re build low dimensional space matricies [IN PROGRESS]
@@ -21,6 +21,8 @@ TODO:
     		-std::async
     - search look up enpoint [TODO]
     	- need to figure out proper dimensions of maping search query to low dim space of partial svds
+
+    - implent functionaly within bitorrent endpoints [TODO]
 
 You need libowfat (http://www.fefe.de/libowfat/).
 

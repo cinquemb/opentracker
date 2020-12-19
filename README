@@ -1,6 +1,17 @@
 This is as _WIP_ fork of opentracker (git://erdgeist.org/opentracker), inspired by (https://news.ycombinator.com/item?id=25245455) with the ability to search torrents on the tracker itself that will require libcurl, libboost (boost_1_64_0), libtorrent (libtorrent-rasterbar-1.0.3, getting torrent metadata) and libarmadillo (armadillo-9.700.3, for search)
 
 
+Steps to install search deps:
+    - libarmadillo
+        - libgfortran (from libgcc)
+        - liblapack (makes libblas to link against libsuperlu)
+        - libblas
+        - libsuperlu
+        - libopenblas
+        - libarpack
+        - libarmadillo
+
+
 TODO: 
     - get hex hash [DONE]
       - how to store hash (mem or disk)

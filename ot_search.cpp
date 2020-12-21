@@ -122,42 +122,57 @@ std::vector<std::pair<int, double>> search_info_hash(std::string& search_query, 
     arma::dmat search_doc_vector(word_vector_size,1);
     search_doc_vector.zeros();
     for(std::map<int,std::string>::iterator iter = seach_query_word_index_map.begin(); iter != seach_query_word_index_map.end(); ++iter){
-        std::cout << "search word index:" << iter->first << std::endl;
-        search_doc_vector(iter->first,0) = 1;
+        // std::cout << "search word row index:" << iter->first << std::endl;
+        search_doc_vector(iter->first,0) = 1 / ((double)seach_query_word_index_map.size());
     }
     arma::dmat sigma = arma::diagmat(sigma_vec); 
     arma::dmat search_low_dimensional_space_doc_vector = isigma_ut * search_doc_vector;
     arma::dmat sigma_search_low_dimensional_space_doc_vector = sigma * search_low_dimensional_space_doc_vector;
 
-    arma::sp_dmat::const_row_iterator i = infohash_word_matrix.begin_row(1);
-	arma::sp_dmat::const_row_iterator i_end = infohash_word_matrix.end_row(infohash_word_matrix.n_rows);
-	for (; i != i_end; ++i){
+    
+	// iterate over rows that contain words
+	//get column (document) indexes that contain search words
+	std::vector<int> column_indecies;
+	std::map<int, bool> col_seen;
+	for(std::map<int,std::string>::iterator ie_iter = seach_query_word_index_map.begin(); ie_iter != seach_query_word_index_map.end(); ++ie_iter){
+		
+
+		arma::sp_dmat::const_row_iterator i = infohash_word_matrix.begin_row(ie_iter->first);
+		arma::sp_dmat::const_row_iterator i_end = infohash_word_matrix.end_row(ie_iter->first);
+		for(; i != i_end; ++i){
+			if (col_seen.count(i.col()) == 0){
+				column_indecies.push_back(i.col());
+				col_seen[i.col()] = true;
+			}
+		}
+	}
+
+	// get all the words in a doc and compare
+	for(int c=0; c < column_indecies.size(); ++c){
 		arma::dmat temp_doc_col_vector(word_vector_size,1);
 		temp_doc_col_vector.zeros();
 		bool is_empty = true;
 
-		arma::sp_dmat tmp_row = infohash_word_matrix.row(i.row());
-
-		arma::sp_dmat::iterator j = tmp_row.begin();
-		arma::sp_dmat::iterator j_end = tmp_row.end();
+		arma::sp_dmat::const_col_iterator j = infohash_word_matrix.begin_col(column_indecies[c]);
+		arma::sp_dmat::const_col_iterator j_end = infohash_word_matrix.end_col(column_indecies[c]);
 
 		for(; j != j_end; ++j){
 			is_empty = false;
-			temp_doc_col_vector(i.row(),0) = (*j);
+			// std::cout << "c idx: in col (adding row): " << c << ": " << column_indecies[c] << " (" << j.row() <<"," << j.col() << ")" << std::endl;
+			temp_doc_col_vector(j.row(),0) = (*j);
 		}
-
 
 		if(!is_empty){
 			assert(isigma_ut.n_cols == word_vector_size);
 			arma::dmat temp_low_dimensional_space_doc_vector = isigma_ut * temp_doc_col_vector;
             arma::dmat sigma_temp_low_dimensional_space_doc_vector = sigma * temp_low_dimensional_space_doc_vector;
 			double distance = compute_cosine_theta_distance(sigma_search_low_dimensional_space_doc_vector, sigma_temp_low_dimensional_space_doc_vector);
-			std::pair<int,double> tmp_pair = std::make_pair(i.row(), distance);
+			std::pair<int,double> tmp_pair = std::make_pair(column_indecies[c], distance);
 			doc_index_distance_map_vector.push_back(tmp_pair);
 		}
 	}
 
-	std::cout << " total docs: " << doc_index_distance_map_vector.size() << std::endl;
+	//std::cout << "total docs: " << doc_index_distance_map_vector.size() << std::endl;
 	std::sort(doc_index_distance_map_vector.begin(), doc_index_distance_map_vector.end(), sort_pair_second<int,double>());
 	return doc_index_distance_map_vector;
 }
@@ -201,7 +216,7 @@ std::vector<std::string> extract_words_from_torrent_metadata(std::string &torren
 	for(int i=0;i<words_vector.size();i++){
 		if(words_map.count(words_vector[i]) == 0){
 			words_map[words_vector[i]] = 1;
-			std::cout << "words_vector[" << i << "]:" << words_vector[i] << std::endl;
+			// std::cout << "words_vector[" << i << "]:" << words_vector[i] << std::endl;
 		}
 	}
 	std::transform(words_map.begin(), words_map.end(), std::back_inserter(words), RetrieveKey());
@@ -210,7 +225,7 @@ std::vector<std::string> extract_words_from_torrent_metadata(std::string &torren
 
 // step 1
 void parse_words_and_info_hash(std::string& torrent_metadata, std::map<std::string, std::string>& word_infohash_indices_map, std::vector<std::string>& info_hash_vec){
-	std::cout << "	Parsing info hashes and Constructing Matrix" << std::endl;
+	//std::cout << "	Parsing info hashes and Constructing Matrix" << std::endl;
 	int start_vec_len = info_hash_vec.size();
 
 	for(int i=0; i< start_vec_len;++i){
@@ -223,20 +238,20 @@ void parse_words_and_info_hash(std::string& torrent_metadata, std::map<std::stri
 					word_infohash_indices_map[words[j]] = std::to_string(i);
 			}
 		}
-		if( i % 10000 == 0 && i != 0)
-			std::cout << "		Hashes Parsed: " << i << std::endl;
+		//if( i % 10000 == 0 && i != 0)
+		//	std::cout << "		Hashes Parsed: " << i << std::endl;
 	}
 }
 
 //step 2
 arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_infohash_indices_map, int& total_info_hashes, std::map<std::string,int>&  word_index_map){
-	//(n_rows, n_cols) format
+	//(n_rows [words], n_cols [documents]) format
 	int number_of_words = word_infohash_indices_map.size();
 	arma::sp_dmat sparse_word_matrix(number_of_words, total_info_hashes);
 	std::vector<std::string> word_vector; 
 	std::transform(word_infohash_indices_map.begin(), word_infohash_indices_map.end(), std::back_inserter(word_vector), RetrieveKey());
 	std::sort(word_vector.begin(), word_vector.end());
-	std::cout << "	sparse matrix construction" << std::endl;
+	//std::cout << "	sparse matrix construction" << std::endl;
 	std::map<std::string,int>  tmp_word_index_map;
 	for(int i=0;i<number_of_words;++i){
 		std::vector<std::string> tmp_word_counts = split_string(word_infohash_indices_map[word_vector[i]], {" "});
@@ -254,15 +269,15 @@ arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_i
 		std::transform(tmp_word_counts_map.begin(), tmp_word_counts_map.end(), std::back_inserter(tmp_word_counts_keys), RetrieveKey());
 
 		int tmp_word_counts_size = tmp_word_counts_keys.size();
-		if(tmp_word_counts_size > 1){
+		if(tmp_word_counts_size > 0){
 			//std::cout << "i: " << i << " tmp_word_counts_size: " << tmp_word_counts_size << std::endl;
 			for(int j=0; j<tmp_word_counts_size;++j){
 				sparse_word_matrix(i,tmp_word_counts_keys[j]) += (float)tmp_word_counts_map[tmp_word_counts_keys[j]];
 			}
 		}
 
-		if( i % 2000 == 0 && i != 0)
-			std::cout << "		Word rows constructed: " << i << std::endl;
+		//if( i % 2000 == 0 && i != 0)
+		//	std::cout << "		Word rows constructed: " << i << std::endl;
 		
 	}
 	word_index_map = tmp_word_index_map;
@@ -271,12 +286,12 @@ arma::sp_dmat construct_sparse_matrix(std::map<std::string, std::string>& word_i
 
 //step 3
 void row_normalize_matrix(arma::sp_dmat& infohash_word_matrix){
-	std::cout << "	Matrix row normalization with 2-norm" << std::endl;
+	//std::cout << "	Matrix row normalization with 2-norm" << std::endl;
 	infohash_word_matrix = arma::normalise(infohash_word_matrix, 2, 1);
 }
 
 void col_normalize_matrix(arma::sp_dmat& infohash_word_matrix){
-	std::cout << "	Matrix col normalization with 2-norm" << std::endl;
+	//std::cout << "	Matrix col normalization with 2-norm" << std::endl;
 	infohash_word_matrix = arma::normalise(infohash_word_matrix, 2, 0);
 }
 
@@ -286,8 +301,5 @@ void partial_svd(arma::sp_dmat& infohash_word_matrix, arma::dmat& u_mat, arma::d
 	bool svds_good = arma::svds(u_mat, sigma_vec, v_matrix, infohash_word_matrix, dims);
 	if(!svds_good)
 		std::cout << "		Partial decomp failed" << std::endl;
-	else{
-		std::cout << "		Partial decomp success" << std::endl;
-	}
 }
 /* search index stuff above */

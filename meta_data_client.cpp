@@ -122,17 +122,9 @@ int main(int argc, char* argv[]){
 	/* search low dimiensional space rep  above */
 
 	/* search lookup below */
+	//std::string search_query = "The Crown";
 	std::string search_query = "Supernatural";
-	std::cout << "post infohash_word_matrix.n_rows x infohash_word_matrix.n_cols: " << infohash_word_matrix.n_rows << " x " << infohash_word_matrix.n_cols << std::endl;
-	std::cout << "Search query: " << "'"+search_query+"'" << std::endl;
-
-	std::cout << "word_infohash_indices_map.size(): " << word_infohash_indices_map.size() << std::endl;
-	
-	std::cout << "word_index_map.size(): " << word_index_map.size() << std::endl;
-
-	for (auto it: word_index_map)
-		std::cout << "word: " << it.first << std::endl;
-	
+	std::cout << "Search query: " << "'"+search_query+"'" << std::endl;		
 	std::vector<std::pair<int, double>> search_result = search_info_hash(
 		search_query,
 		word_index_map, 
@@ -142,8 +134,9 @@ int main(int argc, char* argv[]){
 		infohash_word_matrix
 	);
 
+
 	if(search_result.size() > 0)
-		std::cout << "\t\ttop info_hash index: " << search_result[0].first << " distance: " <<search_result[0].second << " search_result.size(): " << search_result.size() << std::endl;
+		std::cout << "\t\ttop info_hash: " << info_hash_vec[search_result[0].first] << " distance: " <<search_result[0].second << " search_result.size(): " << search_result.size() << std::endl;
 	else
 		std::cout << "\t\tNo docs found for " << search_query << std::endl;
 

@@ -27,10 +27,10 @@ TODO:
     - add to metdata tf-idf matrix [DONE]
     	- need to figure out row/col normalization? (row now)
     	- may need to split tf-info_hash over many matricies (~500k (docs) x ~50k (words), opentracker handles ~10M hashes per day -> ~20 tf-idf matricies and their low dim space reps)
-    - re build low dimensional space matricies [IN PROGRESS]
+    - re build low dimensional space matricies [DONE]
     	- figure out how to do this non bloking
     		-std::async
-    - search look up enpoint [TODO]
+    - search look up enpoint [DONE]
     	- need to figure out proper dimensions of maping search query to low dim space of partial svds
 
     - implent functionaly within bitorrent endpoints [TODO]

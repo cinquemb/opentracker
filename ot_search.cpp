@@ -62,13 +62,14 @@ struct RetrieveKey{
 };
 
 std::vector<std::string> filter_words(std::vector<std::string>& temp_words){
-	char chars[] = "()-.!'~\"><[]";
+	char chars[] = "()-.!'~\"><[] ";
 	std::vector<std::string> words;
 	for(int i=0;i<temp_words.size();++i){
 		for(int j = 0; j < strlen(chars); ++j){
 			temp_words[i].erase(std::remove(temp_words[i].begin(), temp_words[i].end(), chars[j]), temp_words[i].end());
 		}
-		words.push_back(temp_words[i]);
+		if (temp_words[i].size() > 0)
+			words.push_back(temp_words[i]);
 	}
 	return words;
 }
@@ -121,7 +122,7 @@ std::vector<std::pair<int, double>> search_info_hash(std::string& search_query, 
     arma::dmat search_doc_vector(word_vector_size,1);
     search_doc_vector.zeros();
     for(std::map<int,std::string>::iterator iter = seach_query_word_index_map.begin(); iter != seach_query_word_index_map.end(); ++iter){
-        std::cout << iter->first << std::endl;
+        std::cout << "search word index:" << iter->first << std::endl;
         search_doc_vector(iter->first,0) = 1;
     }
     arma::dmat sigma = arma::diagmat(sigma_vec); 
@@ -195,9 +196,13 @@ std::vector<std::string> extract_words_from_torrent_metadata(std::string &torren
 	std::vector<std::string> words;
 	std::map<std::string, int> words_map;
 	std::transform(torrent_metadata.begin(), torrent_metadata.end(), torrent_metadata.begin(), [](unsigned char c) -> unsigned char { return std::tolower(c); });
-	std::vector<std::string> words_vector = split_string(torrent_metadata, {",", ".", " "});
+	std::vector<std::string> words_vector = split_string(torrent_metadata, {",", ".", " ", "[", "]", "(", ")"});
+	words_vector = filter_words(words_vector);
 	for(int i=0;i<words_vector.size();i++){
-		words_map[words_vector[i]] = 1;
+		if(words_map.count(words_vector[i]) == 0){
+			words_map[words_vector[i]] = 1;
+			std::cout << "words_vector[" << i << "]:" << words_vector[i] << std::endl;
+		}
 	}
 	std::transform(words_map.begin(), words_map.end(), std::back_inserter(words), RetrieveKey());
 	return words;

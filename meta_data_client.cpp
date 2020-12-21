@@ -71,10 +71,12 @@ int main(int argc, char* argv[]){
 		if (metadata.size() > 0){
 			std::cout << metadata[0] << std::endl;
 			std::vector<std::string> left_hash_filt = split_string(magnet_uris[i], {"magnet:?xt=urn:btih:"});
-			std::vector<std::string> right_hash_filt = split_string(left_hash_filt[1], {"&tr="});
+			std::vector<std::string> right_hash_filt = split_string(left_hash_filt[left_hash_filt.size()-1], {"&tr="});
 			std::string info_hash = right_hash_filt[0];
+			std::cout << "info_hash: " << info_hash << std::endl;
 			std::vector<std::string> filtered_metadata = split_string(metadata[0], {"->"});
-			std::string torrent_metadata = filtered_metadata[1];
+			std::string torrent_metadata = filtered_metadata[filtered_metadata.size()-1];
+			std::cout << "torrent_metadata:"  << torrent_metadata << std::endl;
 			if (info_hash_index_map.count(info_hash) == 0){
 				info_hash_index_map[info_hash] = 1;
 				info_hash_vec.push_back(info_hash);
@@ -93,6 +95,7 @@ int main(int argc, char* argv[]){
 
 	// TODO: need ot check if matrix already exist and do append only, would need seperate normed matrix
 	int info_hash_vec_size = info_hash_vec.size();
+	std::cout << "info_hash_vec_size:" << info_hash_vec_size << std::endl; 
 	infohash_word_matrix = construct_sparse_matrix(
 		word_infohash_indices_map,
 		info_hash_vec_size,
@@ -119,7 +122,18 @@ int main(int argc, char* argv[]){
 	/* search low dimiensional space rep  above */
 
 	/* search lookup below */
-	/* std::vector<std::pair<int, double>> search_result = search_info_hash(
+	std::string search_query = "Supernatural";
+	std::cout << "post infohash_word_matrix.n_rows x infohash_word_matrix.n_cols: " << infohash_word_matrix.n_rows << " x " << infohash_word_matrix.n_cols << std::endl;
+	std::cout << "Search query: " << "'"+search_query+"'" << std::endl;
+
+	std::cout << "word_infohash_indices_map.size(): " << word_infohash_indices_map.size() << std::endl;
+	
+	std::cout << "word_index_map.size(): " << word_index_map.size() << std::endl;
+
+	for (auto it: word_index_map)
+		std::cout << "word: " << it.first << std::endl;
+	
+	std::vector<std::pair<int, double>> search_result = search_info_hash(
 		search_query,
 		word_index_map, 
 		word_infohash_indices_map, 
@@ -127,6 +141,11 @@ int main(int argc, char* argv[]){
 		isigma_ut, 
 		infohash_word_matrix
 	);
-	*/
+
+	if(search_result.size() > 0)
+		std::cout << "\t\ttop info_hash index: " << search_result[0].first << " distance: " <<search_result[0].second << " search_result.size(): " << search_result.size() << std::endl;
+	else
+		std::cout << "\t\tNo docs found for " << search_query << std::endl;
+
 	/* search lookup above */
 }
